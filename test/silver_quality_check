@@ -1,0 +1,286 @@
+-- =========================================================
+-- 🥈 SILVER LAYER - QUALITY CHECK SCRIPT
+-- =========================================================
+-- Purpose :
+-- Validate Silver Layer transformed data
+-- before moving into Gold Layer.
+--
+-- Checks Included:
+-- ✔ Duplicate Validation
+-- ✔ NULL Validation
+-- ✔ Gender Standardization
+-- ✔ Date Validation
+-- ✔ Business Rule Validation
+-- ✔ Product Validation
+-- ✔ Sales Validation
+-- ✔ Country Standardization
+-- =========================================================
+
+
+
+-- =========================================================
+-- 🗂️ USE DATABASE
+-- =========================================================
+
+USE datawarehouse;
+
+
+
+-- =========================================================
+-- 👨‍💼 CUSTOMER TABLE QUALITY CHECK
+-- =========================================================
+
+
+
+-- 🔍 CHECK DUPLICATE CUSTOMER IDS
+
+SELECT 
+    cst_id,
+    COUNT(*) AS duplicate_count
+
+FROM silver_crm_cust_info
+
+GROUP BY cst_id
+
+HAVING COUNT(*) > 1;
+
+
+
+-- 🔍 CHECK NULL CUSTOMER IDS
+
+SELECT *
+FROM silver_crm_cust_info
+WHERE cst_id IS NULL;
+
+
+
+-- 🔍 CHECK GENDER STANDARDIZATION
+
+SELECT DISTINCT cst_gender
+FROM silver_crm_cust_info;
+
+
+
+-- 🔍 CHECK MARITAL STATUS STANDARDIZATION
+
+SELECT DISTINCT cst_marital_status
+FROM silver_crm_cust_info;
+
+
+
+-- 🔍 CHECK EMPTY CUSTOMER NAMES
+
+SELECT *
+FROM silver_crm_cust_info
+WHERE cst_firstname IS NULL
+   OR cst_lastname IS NULL;
+
+
+
+-- =========================================================
+-- 📦 PRODUCT TABLE QUALITY CHECK
+-- =========================================================
+
+
+
+-- 🔍 CHECK DUPLICATE PRODUCT IDS
+
+SELECT 
+    prd_id,
+    COUNT(*) AS duplicate_count
+
+FROM silver_crm_prd_info
+
+GROUP BY prd_id
+
+HAVING COUNT(*) > 1;
+
+
+
+-- 🔍 CHECK NULL PRODUCT COST
+
+SELECT *
+FROM silver_crm_prd_info
+WHERE prd_cost IS NULL;
+
+
+
+-- 🔍 CHECK NEGATIVE PRODUCT COST
+
+SELECT *
+FROM silver_crm_prd_info
+WHERE prd_cost < 0;
+
+
+
+-- 🔍 CHECK PRODUCT LINE STANDARDIZATION
+
+SELECT DISTINCT prd_line
+FROM silver_crm_prd_info;
+
+
+
+-- 🔍 CHECK INVALID PRODUCT DATES
+
+SELECT *
+FROM silver_crm_prd_info
+WHERE prd_start_dt > prd_end_date;
+
+
+
+-- =========================================================
+-- 💰 SALES TABLE QUALITY CHECK
+-- =========================================================
+
+
+
+-- 🔍 CHECK NULL SALES VALUES
+
+SELECT *
+FROM silver_crm_sales_details
+WHERE sls_sales IS NULL;
+
+
+
+-- 🔍 CHECK NEGATIVE SALES
+
+SELECT *
+FROM silver_crm_sales_details
+WHERE sls_sales < 0;
+
+
+
+-- 🔍 CHECK INVALID ORDER DATES
+
+SELECT *
+FROM silver_crm_sales_details
+WHERE sls_order_dt IS NULL;
+
+
+
+-- 🔍 CHECK SHIPPING DATE BEFORE ORDER DATE
+
+SELECT *
+FROM silver_crm_sales_details
+WHERE sls_ship_dt < sls_order_dt;
+
+
+
+-- 🔍 CHECK DUE DATE BEFORE ORDER DATE
+
+SELECT *
+FROM silver_crm_sales_details
+WHERE sls_due_dt < sls_order_dt;
+
+
+
+-- 🔍 CHECK SALES CALCULATION
+
+SELECT *
+FROM silver_crm_sales_details
+WHERE sls_sales != sls_quantity * ABS(sls_price);
+
+
+
+-- =========================================================
+-- 🧑 ERP CUSTOMER QUALITY CHECK
+-- =========================================================
+
+
+
+-- 🔍 CHECK FUTURE BIRTHDATES
+
+SELECT *
+FROM silver_erp_cust
+WHERE bdate > CURDATE();
+
+
+
+-- 🔍 CHECK GENDER VALUES
+
+SELECT DISTINCT gen
+FROM silver_erp_cust;
+
+
+
+-- 🔍 CHECK NULL CUSTOMER IDS
+
+SELECT *
+FROM silver_erp_cust
+WHERE cid IS NULL;
+
+
+
+-- =========================================================
+-- 🌍 ERP LOCATION QUALITY CHECK
+-- =========================================================
+
+
+
+-- 🔍 CHECK COUNTRY STANDARDIZATION
+
+SELECT DISTINCT cntry
+FROM silver_erp_loc;
+
+
+
+-- 🔍 CHECK NULL COUNTRIES
+
+SELECT *
+FROM silver_erp_loc
+WHERE cntry IS NULL;
+
+
+
+-- =========================================================
+-- 🛠 ERP CATEGORY QUALITY CHECK
+-- =========================================================
+
+
+
+-- 🔍 CHECK NULL CATEGORY IDS
+
+SELECT *
+FROM silver_erp_cat
+WHERE id IS NULL;
+
+
+
+-- 🔍 CHECK EMPTY CATEGORY VALUES
+
+SELECT *
+FROM silver_erp_cat
+WHERE cat IS NULL
+   OR subcat IS NULL;
+
+
+
+-- =========================================================
+-- 🔗 REFERENTIAL INTEGRITY CHECKS
+-- =========================================================
+
+
+
+-- 🔍 CHECK SALES PRODUCT KEYS NOT MATCHING PRODUCT TABLE
+
+SELECT *
+FROM silver_crm_sales_details s
+LEFT JOIN silver_crm_prd_info p
+ON s.sls_prd_key = p.prd_key
+WHERE p.prd_key IS NULL;
+
+
+
+-- 🔍 CHECK SALES CUSTOMER IDS NOT MATCHING CUSTOMER TABLE
+
+SELECT *
+FROM silver_crm_sales_details s
+LEFT JOIN silver_crm_cust_info c
+ON s.sls_cust_id = c.cst_id
+WHERE c.cst_id IS NULL;
+
+
+
+-- =========================================================
+-- ✅ END OF SILVER LAYER QUALITY CHECK
+-- =========================================================
