@@ -1,0 +1,279 @@
+-- =========================================================
+-- 🏆 GOLD LAYER - QUALITY CHECK SCRIPT
+-- =========================================================
+-- Purpose :
+-- Validate transformed data before creating Gold Layer
+-- Ensures:
+-- ✔ No duplicate records
+-- ✔ Proper joins
+-- ✔ Data consistency
+-- ✔ Valid gender values
+-- ✔ Active product filtering
+-- =========================================================
+
+
+
+-- =========================================================
+-- 🗂️ USE DATABASE
+-- =========================================================
+
+USE datawarehouse;
+
+
+
+-- =========================================================
+-- 👤 CUSTOMER DATA VALIDATION
+-- =========================================================
+
+SELECT * 
+FROM silver_erp_cust;
+
+
+
+-- =========================================================
+-- 🔗 CUSTOMER JOIN VALIDATION
+-- =========================================================
+-- Combines:
+-- ✔ CRM Customer Info
+-- ✔ ERP Customer Data
+-- ✔ ERP Location Data
+-- =========================================================
+
+SELECT 
+
+    ci.cst_id,
+
+    ci.cst_key,
+
+    ci.cst_firstname,
+
+    ci.cst_lastname,
+
+    ci.cst_gender,
+
+    ci.cst_marital_status,
+
+    ci.cst_create_dt,
+
+    ca.bdate,
+
+    ca.gen,
+
+    la.cntry
+
+FROM datawarehouse.silver_crm_cust_info AS ci
+
+LEFT JOIN silver_erp_cust AS ca
+    ON ci.cst_key = ca.cid
+
+LEFT JOIN silver_erp_loc AS la
+    ON ci.cst_key = la.cid;
+
+
+
+-- =========================================================
+-- 🚨 DUPLICATE CHECK AFTER JOIN
+-- =========================================================
+-- Checks whether joins created duplicate customer IDs
+-- =========================================================
+
+SELECT 
+
+    cst_id,
+
+    COUNT(*) AS duplicate_count
+
+FROM (
+
+    SELECT 
+
+        ci.cst_id,
+
+        ci.cst_key,
+
+        ci.cst_firstname,
+
+        ci.cst_lastname,
+
+        ci.cst_gender,
+
+        ci.cst_marital_status,
+
+        ci.cst_create_dt,
+
+        ca.bdate,
+
+        ca.gen,
+
+        la.cntry
+
+    FROM datawarehouse.silver_crm_cust_info AS ci
+
+    LEFT JOIN silver_erp_cust AS ca
+        ON ci.cst_key = ca.cid
+
+    LEFT JOIN silver_erp_loc AS la
+        ON ci.cst_key = la.cid
+
+) t
+
+GROUP BY 1
+
+HAVING COUNT(*) > 1;
+
+
+
+-- =========================================================
+-- 🚻 GENDER VALIDATION CHECK
+-- =========================================================
+-- Logic:
+-- ✔ Use ci.cst_gender if not 'n/a'
+-- ✔ Otherwise use ca.gen
+-- ✔ If both missing → return 'n/a'
+-- =========================================================
+
+SELECT 
+
+    ci.cst_gender,
+
+    ca.gen
+
+FROM datawarehouse.silver_crm_cust_info AS ci
+
+LEFT JOIN silver_erp_cust AS ca
+    ON ci.cst_key = ca.cid
+
+LEFT JOIN silver_erp_loc AS la
+    ON ci.cst_key = la.cid
+
+ORDER BY 1,2;
+
+
+
+-- =========================================================
+-- 📦 PRODUCT DATA VALIDATION
+-- =========================================================
+-- Checks:
+-- ✔ Duplicate Product IDs
+-- ✔ Product + Category Mapping
+-- ✔ Active Products Only
+-- =========================================================
+
+SELECT 
+
+    prd_id,
+
+    COUNT(*) AS duplicate_count
+
+FROM (
+
+    SELECT
+
+        pn.prd_id,
+
+        pn.cat_id,
+
+        pn.prd_key,
+
+        pn.prd_nm,
+
+        pn.prd_cost,
+
+        pn.prd_line,
+
+        pn.prd_start_dt,
+
+        pc.cat,
+
+        pc.subcat,
+
+        pc.maintenance
+
+    FROM silver_crm_prd_info AS pn
+
+    LEFT JOIN silver_erp_cat AS pc
+        ON pn.cat_id = pc.id
+
+    WHERE pn.prd_end_date IS NULL
+
+) t
+
+GROUP BY 1
+
+HAVING COUNT(*) > 1;
+
+
+
+-- =========================================================
+-- 💰 NULL COST CHECK
+-- =========================================================
+-- Finds products with missing cost values
+-- =========================================================
+
+SELECT *
+
+FROM silver_crm_prd_info
+
+WHERE prd_cost IS NULL;
+
+
+
+-- =========================================================
+-- 📅 INVALID DATE CHECK
+-- =========================================================
+-- Checks whether product start date is missing
+-- =========================================================
+
+SELECT *
+
+FROM silver_crm_prd_info
+
+WHERE prd_start_dt IS NULL;
+
+
+
+-- =========================================================
+-- 🌍 NULL COUNTRY CHECK
+-- =========================================================
+-- Checks missing customer country values
+-- =========================================================
+
+SELECT *
+
+FROM silver_erp_loc
+
+WHERE cntry IS NULL;
+
+
+
+-- =========================================================
+-- 🧹 CHECK UNKNOWN GENDER VALUES
+-- =========================================================
+-- Finds unexpected gender entries
+-- =========================================================
+
+SELECT DISTINCT cst_gender
+
+FROM silver_crm_cust_info;
+
+
+
+-- =========================================================
+-- 📊 SALES NULL CHECK
+-- =========================================================
+-- Checks important sales columns for NULL values
+-- =========================================================
+
+SELECT *
+
+FROM silver_crm_sales_details
+
+WHERE sls_sales IS NULL
+   OR sls_quantity IS NULL
+   OR sls_price IS NULL;
+
+
+
+-- =========================================================
+-- ✅ END OF QUALITY CHECK SCRIPT
+-- =========================================================
