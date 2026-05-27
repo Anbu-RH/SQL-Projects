@@ -1,0 +1,172 @@
+-- =========================================================
+-- 🏆 GOLD LAYER CREATION
+-- =========================================================
+-- Purpose :
+-- Build Gold Layer views for Business Insights & Reporting
+-- Data is ETL processed from Silver Layer tables
+-- Views are used for analytics, reporting, and quality checks
+-- =========================================================
+
+
+
+-- =========================================================
+-- 👤 GOLD CUSTOMERS VIEW
+-- =========================================================
+-- Notes:
+-- ✔ Creates surrogate key using ROW_NUMBER()
+-- ✔ Cleans and standardizes customer data
+-- ✔ Uses fallback logic for gender column
+-- ✔ Combines CRM + ERP customer/location data
+-- =========================================================
+
+CREATE VIEW gold_customers AS
+
+SELECT 
+    
+    ROW_NUMBER() OVER (ORDER BY ci.cst_id) AS customer_key,
+
+    ci.cst_id AS customer_id,
+
+    ci.cst_firstname AS firstname,
+
+    ci.cst_lastname AS lastname,
+
+    la.cntry AS country,
+
+    CASE
+        WHEN ci.cst_gender <> 'n/a' THEN ci.cst_gender
+        ELSE IFNULL(ca.gen , 'n/a')
+    END AS gender,
+
+    ci.cst_marital_status AS marital_status,
+
+    ca.bdate AS bdate,
+
+    ci.cst_create_dt AS create_date
+
+FROM datawarehouse.silver_crm_cust_info AS ci
+
+LEFT JOIN silver_erp_cust AS ca
+    ON ci.cst_key = ca.cid
+
+LEFT JOIN silver_erp_loc AS la
+    ON ci.cst_key = la.cid;
+
+
+
+-- =========================================================
+-- 🔍 QUALITY CHECK
+-- =========================================================
+
+SELECT DISTINCT gender 
+FROM gold_customers;
+
+
+
+-- =========================================================
+-- 📦 GOLD PRODUCTS VIEW
+-- =========================================================
+-- Notes:
+-- ✔ Generates surrogate product key
+-- ✔ Combines product + category details
+-- ✔ Filters only active products
+-- ✔ Used for sales analytics/reporting
+-- =========================================================
+
+DROP VIEW gold_products;
+
+CREATE VIEW gold_products AS
+
+SELECT
+
+    ROW_NUMBER() OVER (
+        ORDER BY pn.prd_key , pn.prd_start_dt
+    ) AS product_key,
+
+    pn.prd_id AS product_id,
+
+    pn.prd_key AS product_number,
+
+    pn.prd_nm AS product_name,
+
+    pn.cat_id AS category_id,
+
+    pc.cat AS category,
+
+    pc.subcat AS subcategory,
+
+    pc.maintenance AS maintenance,
+
+    pn.prd_cost AS cost,
+
+    pn.prd_line AS product_line,
+
+    pn.prd_start_dt AS start_date
+
+FROM silver_crm_prd_info AS pn
+
+LEFT JOIN silver_erp_cat AS pc
+    ON pn.cat_id = pc.id
+
+WHERE pn.prd_end_date IS NULL;
+
+
+
+-- =========================================================
+-- 🔍 QUALITY CHECK
+-- =========================================================
+
+SELECT DISTINCT cost
+FROM gold_products;
+
+
+
+-- =========================================================
+-- 💰 GOLD SALES VIEW
+-- =========================================================
+-- Notes:
+-- ✔ Connects Sales + Customers + Products
+-- ✔ Creates analytical sales-ready dataset
+-- ✔ Used for BI dashboards & reporting
+-- =========================================================
+
+SELECT * 
+FROM silver_crm_sales_details;
+
+CREATE VIEW gold_sales AS
+
+SELECT
+
+    sd.sls_ord_num AS order_number,
+
+    pr.product_key,
+
+    cu.customer_key,
+
+    sd.sls_cust_id,
+
+    sd.sls_order_dt AS order_date,
+
+    sd.sls_ship_dt AS shipping_date,
+
+    sd.sls_due_dt AS due_date,
+
+    sd.sls_sales AS sales_amount,
+
+    sd.sls_quantity AS quantity,
+
+    sd.sls_price AS price
+
+FROM silver_crm_sales_details AS sd
+
+LEFT JOIN gold_products AS pr
+    ON sd.sls_prd_key = pr.product_number
+
+LEFT JOIN gold_customers AS cu
+    ON sd.sls_cust_id = cu.customer_id;
+
+
+
+-- =========================================================
+-- ✅ END OF GOLD LAYER SCRIPT
+-- =========================================================
